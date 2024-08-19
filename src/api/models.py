@@ -34,7 +34,7 @@ class User(db.Model):
     def serialize(self):
         return {
             "id": self.id,
-            "usrName": self.userName,
+            "userName": self.userName,
             "email": self.email,
             "is_active": self.is_active,
             "favorite_recepies": list(map(lambda x: x.serialize(), self.favorite_recepies))
