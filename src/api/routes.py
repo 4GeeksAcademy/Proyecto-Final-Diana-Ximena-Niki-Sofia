@@ -19,6 +19,21 @@ def handle_users():
     all_users = list(map(lambda x: x.serialize(), users_query))
     return jsonify(all_users), 200
 
+@api.route("/current-user", methods=["GET"])
+@jwt_required()
+def get_current_user():
+    current_user_id = get_jwt_identity()
+    user_query = User.query.get(current_user_id)
+
+    if not user_query:
+        return jsonify({"msg": "User not found"}), 404
+
+    return jsonify(current_user=user_query.serialize()), 200
+
+if __name__ == '__main__':
+    PORT = int(os.environ.get('PORT', 3000))
+    api.run(host='0.0.0.0', port=PORT, debug=False)
+
 @api.route('/users/favorites/', methods=['GET'])
 @jwt_required()
 def handle_user_favorites():
@@ -72,16 +87,6 @@ def handle_favorite_recepies(recepy_id):
 
     return jsonify(user_query.serialize()), 200
 
-@api.route('/favorite/recepies/<int:recepy_id>', methods=['DELETE'])
-@jwt_required()
-def delete_favorite_recepies(recepy_id):
-    current_user_id = get_jwt_identity()
-    recepy_query = Recepies.query.get(recepy_id)
-    user_query = User.query.get(current_user_id)
-    user_query.favorite_recepies.remove(recepy_query)
-
-    return jsonify(user_query.serialize()), 200
-
 @api.route('/ingredients', methods=['POST'])
 def add_ingredient():
     data = request.json
@@ -97,17 +102,6 @@ def add_ingredient():
     db.session.commit()
 
     return jsonify(new_ingredient.serialize()), 201
-
-@api.route('/ingredients/<int:ingredient_id>', methods=['DELETE'])
-@jwt_required()
-def delete_ingredient(ingredient_id):
-    ingredient = Ingredients.query.get(ingredient_id)
-    if not ingredient:
-        return jsonify({"msg": "Ingredient not found"}), 404
-    db.session.delete(ingredient)
-    db.session.commit()
-
-    return jsonify({"msg": "Ingredient deleted successfully"}), 200
 
 @api.route("/login", methods=["POST"])
 def login():
@@ -125,17 +119,58 @@ def login():
     access_token = create_access_token(identity=user_query.id)
     return jsonify(access_token=access_token), 200
 
-@api.route("/current-user", methods=["GET"])
+@api.route('/user', methods=['POST'])
+@jwt_required()  
+def crear_usuario():
+    datos = request.get_json()
+
+    if 'userName' not in datos or 'email' not in datos or 'password' not in datos:
+        return jsonify({'mensaje': 'Faltan datos requeridos'}), 400
+
+    userName = datos['userName']
+    email = datos['email']
+    password = datos['password']
+
+    if User.query.filter_by(userName=userName).first() is not None:
+        return jsonify({'mensaje': 'El nombre de usuario ya está en uso'}), 409
+    if User.query.filter_by(email=email).first() is not None:
+        return jsonify({'mensaje': 'El email ya está en uso'}), 409
+
+    jwt_token = create_access_token(identity=password)
+
+    nuevo_usuario = User(
+        userName=userName,
+        email=email,
+        password=jwt_token  
+    )
+    try:
+        db.session.add(nuevo_usuario)
+        db.session.commit()
+        return jsonify({'mensaje': 'Usuario creado con éxito', 'usuario': nuevo_usuario.serialize()}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'mensaje': 'Error al crear el usuario', 'error': str(e)}), 500
+
+@api.route('/favorite/recepies/<int:recepy_id>', methods=['DELETE'])
 @jwt_required()
-def get_current_user():
+def delete_favorite_recepies(recepy_id):
     current_user_id = get_jwt_identity()
+    recepy_query = Recepies.query.get(recepy_id)
     user_query = User.query.get(current_user_id)
+    user_query.favorite_recepies.remove(recepy_query)
 
-    if not user_query:
-        return jsonify({"msg": "User not found"}), 404
+    return jsonify(user_query.serialize()), 200
 
-    return jsonify(current_user=user_query.serialize()), 200
+@api.route('/ingredients/<int:ingredient_id>', methods=['DELETE'])
+@jwt_required()
+def delete_ingredient(ingredient_id):
+    ingredient = Ingredients.query.get(ingredient_id)
+    if not ingredient:
+        return jsonify({"msg": "Ingredient not found"}), 404
+    db.session.delete(ingredient)
+    db.session.commit()
 
-if __name__ == '__main__':
-    PORT = int(os.environ.get('PORT', 3000))
-    api.run(host='0.0.0.0', port=PORT, debug=False)
+    return jsonify({"msg": "Ingredient deleted successfully"}), 200
+
+
+    
