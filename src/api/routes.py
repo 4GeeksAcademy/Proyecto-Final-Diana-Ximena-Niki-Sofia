@@ -120,7 +120,6 @@ def login():
     return jsonify(access_token=access_token), 200
 
 @api.route('/user', methods=['POST'])
-@jwt_required()  
 def crear_usuario():
     datos = request.get_json()
 
@@ -136,12 +135,10 @@ def crear_usuario():
     if User.query.filter_by(email=email).first() is not None:
         return jsonify({'mensaje': 'El email ya está en uso'}), 409
 
-    jwt_token = create_access_token(identity=password)
-
     nuevo_usuario = User(
         userName=userName,
         email=email,
-        password=jwt_token  
+        password=password  
     )
     try:
         db.session.add(nuevo_usuario)
